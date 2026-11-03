@@ -29,15 +29,21 @@ RUN cmake -G Ninja -S /src/llvm -B /build \
       -DLLVM_PARALLEL_LINK_JOBS=2 \
       -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF \
  && ninja -C /build ${JOBS:+-j$JOBS} install-distribution-stripped
+# clang's HLSL headers (hlsl.h): maxsdk's HLSL programs (mk/maxsdk.mk) are
+# compiled by clang for SPIR-V; PS2EE.cmake does not list them
+RUN ninja -C /build install-hlsl-resource-headers
 # The sources builds on maxsdk compile: compiler-rt's builtins (maxsdk's
-# libmxc) and the runtimes build of libc++/libc++abi (descent3), without tests.
+# libmxc) and the runtimes build of libc++/libc++abi (descent3; libc++
+# includes LLVM libc's shared headers), without tests.
 RUN mkdir -p /opt/ps2max/llvm/src/compiler-rt/lib /opt/ps2max/llvm/src/llvm \
  && cd /src \
- && cp -a cmake runtimes libcxx libcxxabi libunwind /opt/ps2max/llvm/src/ \
+ && cp -a cmake runtimes libc libcxx libcxxabi libunwind /opt/ps2max/llvm/src/ \
  && cp -a compiler-rt/lib/builtins /opt/ps2max/llvm/src/compiler-rt/lib/ \
  && cp -a llvm/cmake llvm/utils /opt/ps2max/llvm/src/llvm/ \
  && rm -rf /opt/ps2max/llvm/src/libcxx/test /opt/ps2max/llvm/src/libcxxabi/test \
            /opt/ps2max/llvm/src/libunwind/test /opt/ps2max/llvm/src/llvm/utils/unittest \
+           /opt/ps2max/llvm/src/libc/test /opt/ps2max/llvm/src/libc/benchmarks \
+           /opt/ps2max/llvm/src/libc/fuzzing /opt/ps2max/llvm/src/libc/docs \
  && git rev-parse HEAD > /opt/ps2max/llvm/REVISION
 
 FROM ${ALPINE}
