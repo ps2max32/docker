@@ -1,0 +1,173 @@
+# Build ghcr.io/ps2max32/llvm and ghcr.io/ps2max32/ps2max from versions.env.
+#
+# nightly / manual: scripts/bump.sh moves the pins to the branch heads (maxsdk
+#   and libgl only to commits whose CI passed) and commits versions.env.
+# llvm: built only when no image of LLVM_REF exists yet (about 2 hours).
+# ps2max: built as :<commit of this repo>, then every repo is built with it
+#   (smoke); only if all build is it tagged :latest, which the repos' CI uses.
+name: images
+
+on:
+  push:
+    branches: [main]
+    paths: [versions.env, llvm/**, ps2max/**, .github/workflows/images.yml]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: images
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/ps2max32
+
+jobs:
+  pins:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump pins
+        if: github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/bump.sh
+      - name: Commit versions.env
+        id: commit
+        run: |
+          if git diff --quiet versions.env; then
+            echo "changed=${{ github.event_name != 'schedule' }}" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name github-actions
+            git config user.email github-actions@users.noreply.github.com
+            git commit -qm "Bump pins" -m "$(git diff -U0 versions.env | grep '^+[A-Z]')" versions.env
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  llvm:
+    needs: pins
+    if: needs.pins.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pins.outputs.sha }}
+      - id: tag
+        run: |
+          . ./versions.env
+          echo "image=$REGISTRY/llvm:${LLVM_REF:0:12}" >> "$GITHUB_OUTPUT"
+          cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: exists
+        run: docker manifest inspect "${{ steps.tag.outputs.image }}" > /dev/null 2>&1 && echo "yes=true" >> "$GITHUB_OUTPUT" || true
+      - name: Free disk space
+        if: steps.exists.outputs.yes != 'true'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.yes != 'true'
+      - uses: docker/build-push-action@v6
+        if: steps.exists.outputs.yes != 'true'
+        with:
+          context: llvm
+          push: true
+          tags: ${{ steps.tag.outputs.image }},${{ env.REGISTRY }}/llvm:latest
+          build-args: |
+            ALPINE=${{ env.ALPINE }}
+            LLVM_REPO=${{ env.LLVM_REPO }}
+            LLVM_REF=${{ env.LLVM_REF }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  ps2max:
+    needs: [pins, llvm]
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.pins.outputs.sha }}
+      - id: tag
+        run: |
+          echo "image=$REGISTRY/ps2max:$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ps2max
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          build-args: |
+            LLVM_IMAGE=${{ needs.llvm.outputs.image }}
+            PS2SDK_IMAGE=${{ env.PS2SDK_IMAGE }}
+            MAXSDK_REPO=${{ env.MAXSDK_REPO }}
+            MAXSDK_REF=${{ env.MAXSDK_REF }}
+            LIBGL_REPO=${{ env.LIBGL_REPO }}
+            LIBGL_REF=${{ env.LIBGL_REF }}
+            PICOLIBC_REPO=${{ env.PICOLIBC_REPO }}
+            PICOLIBC_REF=${{ env.PICOLIBC_REF }}
+            ZLIB_REPO=${{ env.ZLIB_REPO }}
+            ZLIB_REF=${{ env.ZLIB_REF }}
+            PS2CLIENT_REPO=${{ env.PS2CLIENT_REPO }}
+            PS2CLIENT_REF=${{ env.PS2CLIENT_REF }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+  # Every repo's default branch, built with the new image as its own CI does.
+  smoke:
+    needs: ps2max
+    runs-on: ubuntu-latest
+    container: ${{ needs.ps2max.outputs.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repo: maxsdk
+            build: make -C src -j$(nproc) OUT=$PWD/out all test-host check-deps
+          - repo: libgl
+            build: make -C src/tests -j$(nproc) MXGL=$PWD/src OUT=$PWD/out
+          - repo: quake1
+            build: make -C src -j$(nproc) OUT=$PWD/out
+          - repo: quake2
+            build: make -C src -j$(nproc) OUT=$PWD/out
+          - repo: quake3
+            build: make -C src -j$(nproc) OUT=$PWD/out
+          - repo: descent3
+            build: make -C src -j$(nproc) OUT=$PWD/out
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ps2max32/${{ matrix.repo }}
+          path: src
+      - run: ${{ matrix.build }}
+
+  latest:
+    needs: [ps2max, smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-buildx-action@v3
+      - run: docker buildx imagetools create -t "$REGISTRY/ps2max:latest" "${{ needs.ps2max.outputs.image }}"
