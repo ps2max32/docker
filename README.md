@@ -1,11 +1,11 @@
 # ps2max32/docker
 
-Docker images for building ps2max programs (maxsdk, libgl and the apps) in CI.
+Docker images for building ps2max programs (maxsdk, libgl, mxlink and the apps) in CI.
 
 | image | contents |
 |---|---|
 | `ghcr.io/ps2max32/llvm` | the R5900/VU LLVM (ps2max32/llvm, branch r5900-feature): clang, lld, llc, opt, llvm-mc, ... in `/opt/ps2max/llvm/bin`, and the LLVM sources builds compile themselves (compiler-rt builtins, libc++ runtimes) in `/opt/ps2max/llvm/src` |
-| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib and ps2client in `/opt/ps2max`, in ps2max's own layout; the IOP gcc and ps2sdk's IRX modules from ps2dev in `/opt/ps2dev` |
+| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib and ps2client in `/opt/ps2max`, in ps2max's own layout; the IOP gcc, ps2sdk's IOP build files (headers, link script, iopfixup) and IRX modules from ps2dev in `/opt/ps2dev` |
 
 Both are Alpine, like ps2dev's images (the IOP gcc is copied from `ps2dev/ps2sdk`).
 `PS2MAX`, `PS2MAX_LLVM_BIN`, `PS2MAX_LLVM_SRC`, `PS2MAX_IRX`, ... are set as `envsetup.sh` sets them,
@@ -28,8 +28,8 @@ picolibc, zlib, Alpine and the ps2dev image are changed by hand in `versions.env
 
 ## The repos' CI
 
-`ci/` has the `.github/workflows/ps2.yml` of each repo: `maxsdk.yml`, `libgl.yml`, and `app.yml` for
-quake1, quake2, quake3 and descent3 (ELF as an artifact; a release on a `v*` tag).
+`ci/` has the `.github/workflows/ps2.yml` of each repo: `maxsdk.yml`, `libgl.yml`, `mxlink.yml` (the PS2's
+loader), and `app.yml` for quake1, quake2, quake3 and descent3 (ELF as an artifact; a release on a `v*` tag).
 
 ## Building locally
 

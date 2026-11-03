@@ -153,6 +153,8 @@ jobs:
             build: make -C src -j$(nproc) OUT=$PWD/out
           - repo: descent3
             build: make -C src -j$(nproc) OUT=$PWD/out
+          - repo: mxlink
+            build: make -C src -j$(nproc) OUT=$PWD/out all high
     steps:
       - uses: actions/checkout@v4
         with:
