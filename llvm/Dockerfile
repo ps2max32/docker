@@ -18,6 +18,9 @@ RUN test -n "$LLVM_REF" && git init -q /src && cd /src \
 # the apps); they are set before the cache file, which then keeps them.
 ARG TOOLS="llc;llvm-ar;llvm-as;llvm-cxxfilt;llvm-dis;llvm-mc;llvm-mca;llvm-nm;llvm-objcopy;llvm-objdump;llvm-ranlib;llvm-readelf;llvm-readobj;llvm-size;llvm-strings;llvm-strip;llvm-symbolizer;opt"
 # JOBS: ninja parallelism (empty = all cores)
+# The tablegen'd headers (the *_gen targets) are made first: clangCodeGen
+# does not depend on analysis_gen (TargetLibraryInfo.inc), so a parallel
+# build can compile it before that header exists.
 ARG JOBS=
 RUN cmake -G Ninja -S /src/llvm -B /build \
       -DLLVM_TOOLCHAIN_TOOLS="$TOOLS" \
@@ -28,6 +31,7 @@ RUN cmake -G Ninja -S /src/llvm -B /build \
       -DCMAKE_INSTALL_PREFIX=/opt/ps2max/llvm \
       -DLLVM_PARALLEL_LINK_JOBS=2 \
       -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_LIBXML2=OFF \
+ && ninja -C /build ${JOBS:+-j$JOBS} $(ninja -C /build -t targets all | sed -n 's/^\([A-Za-z0-9_]*_gen\): phony.*/\1/p') \
  && ninja -C /build ${JOBS:+-j$JOBS} install-distribution-stripped
 # clang's HLSL headers (hlsl.h): maxsdk's HLSL programs (mk/maxsdk.mk) are
 # compiled by clang for SPIR-V; PS2EE.cmake does not list them
