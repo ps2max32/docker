@@ -155,9 +155,18 @@ jobs:
             build: make -C src -j$(nproc) OUT=$PWD/out
           - repo: hexen2
             build: make -C src -j$(nproc) OUT=$PWD/out
+          - repo: duke3d
+            build: make -C src submodules && make -C src -j$(nproc) OUT=$PWD/out
+          - repo: halflife
+            build: make -C src submodules && make -C src -j$(nproc) OUT=$PWD/out
           - repo: mxlink
             build: make -C src -j$(nproc) OUT=$PWD/out all high
     steps:
+      # git first: the submodules of duke3d and halflife
+      - name: Git
+        run: |
+          apk add --no-cache git
+          git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
         with:
           repository: ps2max32/${{ matrix.repo }}
