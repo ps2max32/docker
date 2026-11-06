@@ -29,7 +29,7 @@ picolibc, zlib, Alpine and the ps2dev image are changed by hand in `versions.env
 ## The repos' CI
 
 `ci/` has the `.github/workflows/ps2.yml` of each repo: `maxsdk.yml`, `libgl.yml`, `mxlink.yml` (the PS2's
-loader), and `app.yml` for quake1, quake2, quake3 and descent3 (ELF as an artifact; a release on a `v*` tag).
+loader), and `app.yml` for quake1, quake2, quake3, descent3 and hexen2 (ELF as an artifact; a release on a `v*` tag).
 
 ## Building locally
 

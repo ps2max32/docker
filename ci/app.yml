@@ -1,4 +1,4 @@
-# .github/workflows/ps2.yml of an app repo (quake1, quake2, quake3, descent3),
+# .github/workflows/ps2.yml of an app repo (quake1, quake2, quake3, descent3, hexen2),
 # on its default branch (ps2). Replace APP with the repo name.
 # Every push and PR: build with ghcr.io/ps2max32/ps2max, keep the ELF as an
 # artifact. A tag v*: also a GitHub release with the ELF.
