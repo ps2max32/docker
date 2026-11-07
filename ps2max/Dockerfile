@@ -5,8 +5,8 @@
 #   libs/maxsdk, libs/libgl, libs/picolibc, libs/zlib   sources at pinned commits
 #   build/libs/maxsdk, build/libs/picolibc/install       built
 #   tools/ps2client/bin/ps2client
-# and the IOP side of ps2dev (its IOP gcc, ps2sdk's IOP build files and prebuilt
-# IRX modules) in /opt/ps2dev. A repo's CI builds its checkout against this, e.g.
+# and the IOP side of ps2dev (ps2sdk's IOP headers, iopfixup and prebuilt IRX
+# modules; IOP code is built with LLVM) in /opt/ps2dev. A repo's CI builds its checkout against this, e.g.
 #   make -C apps/quake1 OUT=$PWD/out
 #
 #   docker build --build-arg LLVM_IMAGE=... --build-arg PS2SDK_IMAGE=... \
@@ -19,22 +19,18 @@ FROM ${PS2SDK_IMAGE} AS ps2dev
 
 FROM ${LLVM_IMAGE}
 RUN apk add --no-cache bash build-base cmake coreutils git make meson ninja python3
-# The IOP side of ps2dev: the only parts of ps2dev ps2max uses. The IOP gcc,
-# ps2sdk's IOP build files (headers, link script, iopfixup: mxlink's IOP
-# module) and its prebuilt IRX modules
-COPY --from=ps2dev /usr/local/ps2dev/iop /opt/ps2dev/iop
+# The IOP side of ps2dev: the only parts of ps2dev ps2max uses. ps2sdk's IOP
+# headers, iopfixup (an IRX from lld's output) and its prebuilt IRX modules
 COPY --from=ps2dev /usr/local/ps2dev/ps2sdk/iop/irx /opt/ps2dev/ps2sdk/iop/irx
 COPY --from=ps2dev /usr/local/ps2dev/ps2sdk/iop/include /opt/ps2dev/ps2sdk/iop/include
-COPY --from=ps2dev /usr/local/ps2dev/ps2sdk/iop/startup /opt/ps2dev/ps2sdk/iop/startup
 COPY --from=ps2dev /usr/local/ps2dev/ps2sdk/common/include /opt/ps2dev/ps2sdk/common/include
 COPY --from=ps2dev /usr/local/ps2dev/ps2sdk/bin/iopfixup /opt/ps2dev/ps2sdk/bin/iopfixup
 ENV PS2MAX=/opt/ps2max \
     PS2MAX_PS2DEV=/opt/ps2dev \
-    PS2MAX_IOP_BIN=/opt/ps2dev/iop/bin \
     PS2MAX_IOP_SDK=/opt/ps2dev/ps2sdk \
     PS2MAX_IRX=/opt/ps2dev/ps2sdk/iop/irx \
     PS2CLIENT=/opt/ps2max/tools/ps2client/bin/ps2client \
-    PATH=/opt/ps2max/tools/ps2client/bin:/opt/ps2dev/iop/bin:$PATH
+    PATH=/opt/ps2max/tools/ps2client/bin:$PATH
 
 ARG MAXSDK_REPO=https://github.com/ps2max32/maxsdk
 ARG MAXSDK_REF
@@ -58,7 +54,7 @@ RUN printf '%s\n' '#!/bin/sh' 'set -e' \
  && fetch "$PICOLIBC_REPO" "$PICOLIBC_REF" /opt/ps2max/libs/picolibc \
  && fetch "$ZLIB_REPO" "$ZLIB_REF" /opt/ps2max/libs/zlib \
  && fetch "$PS2CLIENT_REPO" "$PS2CLIENT_REF" /opt/ps2max/tools/ps2client \
- && cd /opt/ps2max/libs/picolibc && patch -p1 < ../maxsdk/libc/picolibc-r5900.patch
+ && cd /opt/ps2max/libs/picolibc && patch -p1 < ../maxsdk/ee/libc/picolibc-r5900.patch
 RUN make -C /opt/ps2max/libs/maxsdk picolibc \
  && make -C /opt/ps2max/libs/maxsdk -j"$(nproc)" lib libc \
  && make -C /opt/ps2max/tools/ps2client \
