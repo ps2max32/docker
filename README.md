@@ -5,7 +5,7 @@ Docker images for building ps2max programs (maxsdk, libgl, mxlink and the apps) 
 | image | contents |
 |---|---|
 | `ghcr.io/ps2max32/llvm` | the R5900/VU LLVM (ps2max32/llvm, branch r5900-feature): clang, lld, llc, opt, llvm-mc, ... in `/opt/ps2max/llvm/bin`, and the LLVM sources builds compile themselves (compiler-rt builtins, libc++ runtimes) in `/opt/ps2max/llvm/src` |
-| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib and ps2client in `/opt/ps2max`, in ps2max's own layout; ps2sdk's IOP headers, iopfixup and IRX modules from ps2dev in `/opt/ps2dev` (IOP code is built with LLVM) |
+| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib, lwip and ps2client in `/opt/ps2max`, in ps2max's own layout; ps2sdk's IOP headers, iopfixup and IRX modules from ps2dev in `/opt/ps2dev` (IOP code is built with LLVM) |
 
 Both are Alpine, like ps2dev's images (the IOP files are copied from `ps2dev/ps2sdk`).
 `PS2MAX`, `PS2MAX_LLVM_BIN`, `PS2MAX_LLVM_SRC`, `PS2MAX_IRX`, ... are set as `envsetup.sh` sets them,
@@ -24,7 +24,7 @@ docker run --rm -v $PWD:/work ghcr.io/ps2max32/ps2max make OUT=/work/out   # in 
 - builds `llvm:<LLVM_REF>` if there is none yet (about 2 hours), then `ps2max:<commit of this repo>`;
 - builds every repo's default branch with that image, and tags it `ps2max:latest` only if all of them build.
 
-picolibc, zlib, Alpine and the ps2dev image are changed by hand in `versions.env`.
+picolibc, zlib, lwip, Alpine and the ps2dev image are changed by hand in `versions.env`.
 
 ## The repos' CI
 
@@ -38,6 +38,6 @@ set -a; . ./versions.env; set +a
 docker build --build-arg ALPINE=$ALPINE --build-arg LLVM_REPO=$LLVM_REPO --build-arg LLVM_REF=$LLVM_REF \
   -t ps2max32/llvm:local llvm/
 docker build --build-arg LLVM_IMAGE=ps2max32/llvm:local --build-arg PS2SDK_IMAGE=$PS2SDK_IMAGE \
-  $(for v in MAXSDK LIBGL PICOLIBC ZLIB PS2CLIENT; do eval echo --build-arg ${v}_REPO=\$${v}_REPO --build-arg ${v}_REF=\$${v}_REF; done) \
+  $(for v in MAXSDK LIBGL PICOLIBC ZLIB LWIP PS2CLIENT; do eval echo --build-arg ${v}_REPO=\$${v}_REPO --build-arg ${v}_REF=\$${v}_REF; done) \
   -t ps2max32/ps2max:local ps2max/
 ```

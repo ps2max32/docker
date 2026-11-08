@@ -2,7 +2,7 @@
 # ghcr.io/ps2max32/ps2max: everything to build ps2max programs, on the llvm
 # image. /opt/ps2max has ps2max's own layout (PS2MAX=/opt/ps2max), so the
 # Makefiles' defaults find everything:
-#   libs/maxsdk, libs/libgl, libs/picolibc, libs/zlib   sources at pinned commits
+#   libs/maxsdk, libs/libgl, libs/picolibc, libs/zlib, libs/lwip   sources at pinned commits
 #   build/libs/maxsdk, build/libs/picolibc/install       built
 #   tools/ps2client/bin/ps2client
 # and the IOP side of ps2dev (ps2sdk's IOP headers, iopfixup and prebuilt IRX
@@ -40,6 +40,8 @@ ARG PICOLIBC_REPO=https://github.com/picolibc/picolibc
 ARG PICOLIBC_REF
 ARG ZLIB_REPO=https://github.com/madler/zlib
 ARG ZLIB_REF
+ARG LWIP_REPO=https://github.com/lwip-tcpip/lwip
+ARG LWIP_REF
 ARG PS2CLIENT_REPO=https://github.com/rickgaiser/ps2client
 ARG PS2CLIENT_REF
 # fetch <repo> <commit> <dir>: that commit only, without history
@@ -53,6 +55,7 @@ RUN printf '%s\n' '#!/bin/sh' 'set -e' \
  && fetch "$LIBGL_REPO" "$LIBGL_REF" /opt/ps2max/libs/libgl \
  && fetch "$PICOLIBC_REPO" "$PICOLIBC_REF" /opt/ps2max/libs/picolibc \
  && fetch "$ZLIB_REPO" "$ZLIB_REF" /opt/ps2max/libs/zlib \
+ && fetch "$LWIP_REPO" "$LWIP_REF" /opt/ps2max/libs/lwip \
  && fetch "$PS2CLIENT_REPO" "$PS2CLIENT_REF" /opt/ps2max/tools/ps2client \
  && cd /opt/ps2max/libs/picolibc && patch -p1 < ../maxsdk/ee/libc/picolibc-r5900.patch
 RUN make -C /opt/ps2max/libs/maxsdk picolibc \

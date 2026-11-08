@@ -128,6 +128,8 @@ jobs:
             PICOLIBC_REF=${{ env.PICOLIBC_REF }}
             ZLIB_REPO=${{ env.ZLIB_REPO }}
             ZLIB_REF=${{ env.ZLIB_REF }}
+            LWIP_REPO=${{ env.LWIP_REPO }}
+            LWIP_REF=${{ env.LWIP_REF }}
             PS2CLIENT_REPO=${{ env.PS2CLIENT_REPO }}
             PS2CLIENT_REF=${{ env.PS2CLIENT_REF }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
