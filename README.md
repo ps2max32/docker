@@ -5,7 +5,7 @@ Docker images for building ps2max programs (maxsdk, libgl, mxlink and the apps) 
 | image | contents |
 |---|---|
 | `ghcr.io/ps2max32/llvm` | the R5900/VU LLVM (ps2max32/llvm, branch r5900-feature): clang, lld, llc, opt, llvm-mc, ... in `/opt/ps2max/llvm/bin`, and the LLVM sources builds compile themselves (compiler-rt builtins, libc++ runtimes) in `/opt/ps2max/llvm/src` |
-| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib, lwip and ps2client in `/opt/ps2max`, in ps2max's own layout; ps2sdk's IOP headers, iopfixup and IRX modules from ps2dev in `/opt/ps2dev` (IOP code is built with LLVM) |
+| `ghcr.io/ps2max32/ps2max` | the llvm image plus maxsdk (built), picolibc (built, with maxsdk's patch), libgl, zlib, lwip and ps2client in `/opt/ps2max`, in ps2max's own layout; ps2sdk's IOP headers and IRX modules from ps2dev in `/opt/ps2dev` (IOP code is built with LLVM) |
 
 Both are Alpine, like ps2dev's images (the IOP files are copied from `ps2dev/ps2sdk`).
 `PS2MAX`, `PS2MAX_LLVM_BIN`, `PS2MAX_LLVM_SRC`, `PS2MAX_IRX`, ... are set as `envsetup.sh` sets them,
