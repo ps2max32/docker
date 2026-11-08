@@ -28,12 +28,12 @@ env:
 
 jobs:
   pins:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       changed: ${{ steps.commit.outputs.changed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Bump pins
         if: github.event_name != 'push'
         env:
@@ -56,12 +56,12 @@ jobs:
   llvm:
     needs: pins
     if: needs.pins.outputs.changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 340
     outputs:
       image: ${{ steps.tag.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.pins.outputs.sha }}
       - id: tag
@@ -69,7 +69,7 @@ jobs:
           . ./versions.env
           echo "image=$REGISTRY/llvm:${LLVM_REF:0:12}" >> "$GITHUB_OUTPUT"
           cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -79,9 +79,9 @@ jobs:
       - name: Free disk space
         if: steps.exists.outputs.yes != 'true'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
         if: steps.exists.outputs.yes != 'true'
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         if: steps.exists.outputs.yes != 'true'
         with:
           context: llvm
@@ -95,24 +95,24 @@ jobs:
 
   ps2max:
     needs: [pins, llvm]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       image: ${{ steps.tag.outputs.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.pins.outputs.sha }}
       - id: tag
         run: |
           echo "image=$REGISTRY/ps2max:$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
           cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: ps2max
           push: true
@@ -137,7 +137,7 @@ jobs:
   # Every repo's default branch, built with the new image as its own CI does.
   smoke:
     needs: ps2max
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     container: ${{ needs.ps2max.outputs.image }}
     strategy:
       fail-fast: false
@@ -169,7 +169,7 @@ jobs:
         run: |
           apk add --no-cache git
           git config --global --add safe.directory '*'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ps2max32/${{ matrix.repo }}
           path: src
@@ -177,12 +177,12 @@ jobs:
 
   latest:
     needs: [ps2max, smoke]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - run: docker buildx imagetools create -t "$REGISTRY/ps2max:latest" "${{ needs.ps2max.outputs.image }}"
