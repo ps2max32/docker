@@ -15,7 +15,9 @@ ARG LLVM_REF
 RUN test -n "$LLVM_REF" && git init -q /src && cd /src \
  && git fetch -q --depth 1 "$LLVM_REPO" "$LLVM_REF" && git checkout -q FETCH_HEAD
 # PS2EE.cmake's toolchain tools plus llvm-mc and llvm-mca (used by maxsdk and
-# the apps); they are set before the cache file, which then keeps them.
+# the apps); they are set before the cache file, which then keeps them. Its
+# LLVM_DISTRIBUTION_COMPONENTS (clang, lld, the EE's and the IOP's compiler-rt
+# builtins, these tools) is what gets installed.
 ARG TOOLS="llc;llvm-ar;llvm-as;llvm-cxxfilt;llvm-dis;llvm-mc;llvm-mca;llvm-nm;llvm-objcopy;llvm-objdump;llvm-ranlib;llvm-readelf;llvm-readobj;llvm-size;llvm-strings;llvm-strip;llvm-symbolizer;opt"
 # JOBS: ninja parallelism (empty = all cores)
 # The tablegen'd headers (the *_gen targets) are made first: clangCodeGen
@@ -24,7 +26,6 @@ ARG TOOLS="llc;llvm-ar;llvm-as;llvm-cxxfilt;llvm-dis;llvm-mc;llvm-mca;llvm-nm;ll
 ARG JOBS=
 RUN cmake -G Ninja -S /src/llvm -B /build \
       -DLLVM_TOOLCHAIN_TOOLS="$TOOLS" \
-      -DLLVM_DISTRIBUTION_COMPONENTS="clang;lld;clang-resource-headers;builtins-mips64el-scei-ps2;$TOOLS" \
       -C /src/clang/cmake/caches/PS2EE.cmake \
       -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=VU \
       -DCMAKE_BUILD_TYPE=Release \

@@ -1,188 +1,115 @@
-# Build ghcr.io/ps2max32/llvm and ghcr.io/ps2max32/ps2max from versions.env.
+# Build the images the repos' CI runs in, for every LLVM commit a repo names:
+#   ghcr.io/ps2max32/llvm:<LLVM commit, 12>-<recipe>  the LLVM (about 2 hours);
+#     <recipe> is a hash of llvm/Dockerfile and ALPINE, so a changed recipe
+#     builds a new image instead of reusing the old one
+#   ghcr.io/ps2max32/ps2max:llvm-<LLVM commit, 12>     the toolchain on it
+#     (ps2max/Dockerfile), the image .github/workflows/build.yml runs in
 #
-# nightly / manual: scripts/bump.sh moves the pins to the branch heads (maxsdk
-#   and libgl only to commits whose CI passed) and commits versions.env.
-# llvm: built only when no image of LLVM_REF exists yet (about 2 hours).
-# ps2max: built as :<commit of this repo>, then every repo is built with it
-#   (smoke); only if all build is it tagged :latest, which the repos' CI uses.
+# Which LLVM commits: the LLVM_REF of every ps2max32 repo's ps2max.deps on its
+# default branch (scripts/llvm-refs.sh), or the one given to a manual run
+# (scripts/deps.sh in ps2max starts that when it pins an LLVM without image).
+# Nightly: only the missing images. A push here (a changed recipe) or a
+# manual run: the ps2max images again too.
 name: images
 
 on:
   push:
     branches: [main]
-    paths: [versions.env, llvm/**, ps2max/**, .github/workflows/images.yml]
+    paths: [versions.env, llvm/**, ps2max/**, scripts/fetch-deps.sh, scripts/llvm-refs.sh, .github/workflows/images.yml]
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      llvm_ref:
+        description: 'LLVM commit (ps2max32/llvm, 40 hex digits); empty: every LLVM_REF the repos name'
+        required: false
+        default: ''
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
 concurrency:
-  group: images
+  group: images-${{ inputs.llvm_ref }}
   cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io/ps2max32
 
 jobs:
-  pins:
+  refs:
     runs-on: ubuntu-26.04
     outputs:
-      sha: ${{ steps.commit.outputs.sha }}
-      changed: ${{ steps.commit.outputs.changed }}
+      refs: ${{ steps.refs.outputs.refs }}
     steps:
       - uses: actions/checkout@v7
-      - name: Bump pins
-        if: github.event_name != 'push'
+      - id: refs
         env:
           GH_TOKEN: ${{ github.token }}
-        run: sh scripts/bump.sh
-      - name: Commit versions.env
-        id: commit
+          INPUT: ${{ inputs.llvm_ref }}
         run: |
-          if git diff --quiet versions.env; then
-            echo "changed=${{ github.event_name != 'schedule' }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT" ]; then
+            echo "$INPUT" | grep -qxE '[0-9a-f]{40}' || { echo "::error::llvm_ref: 40 hex digits"; exit 1; }
+            refs=$INPUT
           else
-            git config user.name github-actions
-            git config user.email github-actions@users.noreply.github.com
-            git commit -qm "Bump pins" -m "$(git diff -U0 versions.env | grep '^+[A-Z]')" versions.env
-            git push
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+            refs=$(sh scripts/llvm-refs.sh)
           fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "$refs"
+          echo "refs=$(printf '%s\n' $refs | jq -Rnc '[inputs | select(length > 0)]')" >> "$GITHUB_OUTPUT"
 
-  llvm:
-    needs: pins
-    if: needs.pins.outputs.changed == 'true'
+  images:
+    needs: refs
+    if: needs.refs.outputs.refs != '[]'
     runs-on: ubuntu-26.04
     timeout-minutes: 340
-    outputs:
-      image: ${{ steps.tag.outputs.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ${{ fromJSON(needs.refs.outputs.refs) }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.pins.outputs.sha }}
       - id: tag
+        env:
+          REF: ${{ matrix.ref }}
         run: |
+          grep -v '^#' versions.env | grep = >> "$GITHUB_ENV"
           . ./versions.env
-          echo "image=$REGISTRY/llvm:${LLVM_REF:0:12}" >> "$GITHUB_OUTPUT"
-          cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
+          recipe=$( (cat llvm/Dockerfile; echo "$ALPINE") | sha256sum | cut -c1-8)
+          echo "llvm=$REGISTRY/llvm:$(echo "$REF" | cut -c1-12)-$recipe" >> "$GITHUB_OUTPUT"
+          echo "ps2max=$REGISTRY/ps2max:llvm-$(echo "$REF" | cut -c1-12)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - id: exists
-        run: docker manifest inspect "${{ steps.tag.outputs.image }}" > /dev/null 2>&1 && echo "yes=true" >> "$GITHUB_OUTPUT" || true
+        run: |
+          have() { docker manifest inspect "$1" > /dev/null 2>&1 && echo true || echo false; }
+          echo "llvm=$(have "${{ steps.tag.outputs.llvm }}")" >> "$GITHUB_OUTPUT"
+          echo "ps2max=$(have "${{ steps.tag.outputs.ps2max }}")" >> "$GITHUB_OUTPUT"
       - name: Free disk space
-        if: steps.exists.outputs.yes != 'true'
+        if: steps.exists.outputs.llvm != 'true'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: docker/setup-buildx-action@v4
-        if: steps.exists.outputs.yes != 'true'
       - uses: docker/build-push-action@v7
-        if: steps.exists.outputs.yes != 'true'
+        if: steps.exists.outputs.llvm != 'true'
         with:
           context: llvm
           push: true
-          tags: ${{ steps.tag.outputs.image }},${{ env.REGISTRY }}/llvm:latest
+          tags: ${{ steps.tag.outputs.llvm }}
           build-args: |
             ALPINE=${{ env.ALPINE }}
             LLVM_REPO=${{ env.LLVM_REPO }}
-            LLVM_REF=${{ env.LLVM_REF }}
+            LLVM_REF=${{ matrix.ref }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-
-  ps2max:
-    needs: [pins, llvm]
-    runs-on: ubuntu-26.04
-    outputs:
-      image: ${{ steps.tag.outputs.image }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.pins.outputs.sha }}
-      - id: tag
-        run: |
-          echo "image=$REGISTRY/ps2max:$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
-          cat versions.env | grep -v '^#' | grep = >> "$GITHUB_ENV"
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-      - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
+        if: steps.exists.outputs.ps2max != 'true' || steps.exists.outputs.llvm != 'true' || github.event_name != 'schedule'
         with:
-          context: ps2max
+          context: .
+          file: ps2max/Dockerfile
           push: true
-          tags: ${{ steps.tag.outputs.image }}
+          tags: ${{ steps.tag.outputs.ps2max }}
           build-args: |
-            LLVM_IMAGE=${{ needs.llvm.outputs.image }}
+            LLVM_IMAGE=${{ steps.tag.outputs.llvm }}
             PS2SDK_IMAGE=${{ env.PS2SDK_IMAGE }}
-            MAXSDK_REPO=${{ env.MAXSDK_REPO }}
-            MAXSDK_REF=${{ env.MAXSDK_REF }}
-            LIBGL_REPO=${{ env.LIBGL_REPO }}
-            LIBGL_REF=${{ env.LIBGL_REF }}
-            PICOLIBC_REPO=${{ env.PICOLIBC_REPO }}
-            PICOLIBC_REF=${{ env.PICOLIBC_REF }}
-            ZLIB_REPO=${{ env.ZLIB_REPO }}
-            ZLIB_REF=${{ env.ZLIB_REF }}
-            LWIP_REPO=${{ env.LWIP_REPO }}
-            LWIP_REF=${{ env.LWIP_REF }}
-            PS2CLIENT_REPO=${{ env.PS2CLIENT_REPO }}
-            PS2CLIENT_REF=${{ env.PS2CLIENT_REF }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-
-  # Every repo's default branch, built with the new image as its own CI does.
-  smoke:
-    needs: ps2max
-    runs-on: ubuntu-26.04
-    container: ${{ needs.ps2max.outputs.image }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - repo: maxsdk
-            build: make -C src -j$(nproc) OUT=$PWD/out all test-host check-deps
-          - repo: libgl
-            build: make -C src/tests -j$(nproc) MXGL=$PWD/src OUT=$PWD/out
-          - repo: quake1
-            build: make -C src -j$(nproc) OUT=$PWD/out
-          - repo: quake2
-            build: make -C src -j$(nproc) OUT=$PWD/out
-          - repo: quake3
-            build: make -C src -j$(nproc) OUT=$PWD/out
-          - repo: descent3
-            build: make -C src -j$(nproc) OUT=$PWD/out
-          - repo: hexen2
-            build: make -C src -j$(nproc) OUT=$PWD/out
-          - repo: duke3d
-            build: make -C src submodules && make -C src -j$(nproc) OUT=$PWD/out
-          - repo: halflife
-            build: make -C src submodules && make -C src -j$(nproc) OUT=$PWD/out
-          - repo: mxlink
-            build: make -C src -j$(nproc) OUT=$PWD/out all high
-    steps:
-      # git first: the submodules of duke3d and halflife
-      - name: Git
-        run: |
-          apk add --no-cache git
-          git config --global --add safe.directory '*'
-      - uses: actions/checkout@v7
-        with:
-          repository: ps2max32/${{ matrix.repo }}
-          path: src
-      - run: ${{ matrix.build }}
-
-  latest:
-    needs: [ps2max, smoke]
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
-      - uses: docker/setup-buildx-action@v4
-      - run: docker buildx imagetools create -t "$REGISTRY/ps2max:latest" "${{ needs.ps2max.outputs.image }}"

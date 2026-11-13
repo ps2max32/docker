@@ -1,0 +1,23 @@
+# .github/workflows/ps2.yml of ps2max32/mxos (template: ci/mxos.yml of ps2max32/docker).
+# Builds with the commits its ps2max.deps names (LLVM, maxsdk, ...), through
+# the reusable build of ps2max32/docker. Every push and PR: MXKERNEL.ELF (to install) and
+# mxkernel-high.elf, with ps2link.irx from the mxlink of its ps2max.deps, as
+# an artifact; a tag v*: also a GitHub release with them.
+name: ps2
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ps2:
+    uses: ps2max32/docker/.github/workflows/build.yml@main
+    with:
+      build: make -j$(nproc) OUT=$PWD/out all high
+      artifacts: |
+        out/MXKERNEL.ELF
+        out/mxkernel-high.elf

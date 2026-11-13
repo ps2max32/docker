@@ -1,0 +1,17 @@
+# .github/workflows/ps2.yml of ps2max32/mxshell (template: ci/mxshell.yml of ps2max32/docker).
+# Builds with the commits its ps2max.deps names (LLVM, maxsdk, ...), through
+# the reusable build of ps2max32/docker. Every push and PR: out/MXOS (MXSHELL.ELF and the
+# storage drivers it loads) as an artifact.
+name: ps2
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ps2:
+    uses: ps2max32/docker/.github/workflows/build.yml@main
+    with:
+      artifacts: out/MXOS
+      release: false

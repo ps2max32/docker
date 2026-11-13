@@ -1,0 +1,107 @@
+# Reusable: build a ps2max repo with the dependencies its ps2max.deps names.
+#
+# A repo's .github/workflows/ps2.yml calls it (templates in ci/):
+#   jobs:
+#     ps2:
+#       uses: ps2max32/docker/.github/workflows/build.yml@main
+#       with:
+#         artifacts: out/*.elf
+#
+# It runs in ghcr.io/ps2max32/ps2max:llvm-<LLVM_REF> (images.yml builds it),
+# fetches MAXSDK_REF, LIBGL_REF, ... into /opt/ps2max and builds maxsdk there
+# (scripts/fetch-deps.sh, cached between runs), then runs `build` in the
+# checkout. Every push and PR: the files `artifacts` names as an artifact; a
+# tag v*: also a GitHub release with them (the caller needs
+# `permissions: contents: write`).
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      self:
+        description: 'The dependency this repo is (MAXSDK, LIBGL, MXLINK, MXSHELL): /opt/ps2max has a link to the checkout in its place'
+        type: string
+        default: ''
+      setup:
+        description: 'Commands before the build (e.g. make submodules)'
+        type: string
+        default: ''
+      build:
+        description: 'The build commands, in the checkout'
+        type: string
+        default: 'make -j$(nproc) OUT=$PWD/out'
+      artifacts:
+        description: 'Files (globs, one per line) kept as the artifact and released on a tag v*'
+        type: string
+        default: 'out/*.elf'
+      release:
+        description: 'A GitHub release on a tag v*'
+        type: boolean
+        default: true
+
+jobs:
+  image:
+    runs-on: ubuntu-26.04
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: ps2max.deps
+          sparse-checkout-cone-mode: false
+      - id: image
+        run: |
+          test -f ps2max.deps || { echo "::error::this repo has no ps2max.deps"; exit 1; }
+          ref=$(sed -n 's/^LLVM_REF=\([0-9a-f]\{40\}\).*/\1/p' ps2max.deps)
+          test -n "$ref" || { echo "::error file=ps2max.deps::no LLVM_REF (40 hex digits)"; exit 1; }
+          image=ghcr.io/ps2max32/ps2max:llvm-${ref:0:12}
+          if ! docker manifest inspect "$image" > /dev/null 2>&1; then
+            echo "::error file=ps2max.deps::no image $image yet: run the images workflow of ps2max32/docker with llvm_ref=$ref (about 2 hours), then run this again"
+            exit 1
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: image
+    runs-on: ubuntu-26.04
+    container: ${{ needs.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: deps
+        name: fetch-deps
+        run: |
+          wget -qO /usr/local/bin/fetch-deps https://raw.githubusercontent.com/ps2max32/docker/main/scripts/fetch-deps.sh
+          chmod +x /usr/local/bin/fetch-deps
+          mkdir -p /opt/ps2max/libs /opt/ps2max/apps /opt/ps2max/build/libs
+          echo "key=ps2max-deps-${{ inputs.self }}-$(cat ps2max.deps /usr/local/bin/fetch-deps | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            /opt/ps2max/libs
+            /opt/ps2max/apps
+            /opt/ps2max/build/libs
+          key: ${{ steps.deps.outputs.key }}
+          restore-keys: ps2max-deps-${{ inputs.self }}-
+      - name: Dependencies (ps2max.deps)
+        env:
+          SELF: ${{ inputs.self }}
+        run: SELF_DIR="$GITHUB_WORKSPACE" fetch-deps ps2max.deps
+      - name: Setup
+        if: inputs.setup != ''
+        run: ${{ inputs.setup }}
+      - name: Build
+        run: ${{ inputs.build }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event.repository.name }}-${{ github.sha }}
+          path: ${{ inputs.artifacts }}
+          if-no-files-found: error
+      - name: Release
+        if: inputs.release && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACTS: ${{ inputs.artifacts }}
+        run: |
+          apk add --no-cache github-cli
+          files=$(for p in $ARTIFACTS; do [ -f "$p" ] && echo "$p"; done)
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes $files
