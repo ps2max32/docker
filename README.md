@@ -36,6 +36,7 @@ So a repo always builds with the dependencies it was made with, whatever the oth
 | `PICOLIBC_REF` | picolibc | `libs/picolibc` (with maxsdk's patch), built in `build/libs/picolibc` |
 | `ZLIB_REF` | zlib | `libs/zlib` |
 | `LWIP_REF` | lwIP | `libs/lwip` |
+| `MBEDTLS_REF` | Mbed TLS | `libs/mbedtls` (MXSTORE's TLS) |
 
 maxsdk's CI passes `self: MAXSDK`: `libs/maxsdk` is then a link to the checkout, which builds itself.
 

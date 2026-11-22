@@ -11,6 +11,7 @@
 #   MAXSDK_REF    libs/maxsdk      LIBGL_REF   libs/libgl
 #   MXLINK_REF    apps/mxlink      MXSHELL_REF apps/mxshell
 #   PICOLIBC_REF  libs/picolibc    ZLIB_REF    libs/zlib     LWIP_REF libs/lwip
+#   MBEDTLS_REF   libs/mbedtls
 #
 # It refuses commits that are not on GitHub (not in a branch or tag of the
 # checkout's GitHub remote: push them first), warns about uncommitted changes
@@ -41,6 +42,7 @@ dir_of() {
     MAXSDK) echo libs/maxsdk ;; LIBGL) echo libs/libgl ;;
     MXLINK) echo apps/mxlink ;; MXSHELL) echo apps/mxshell ;;
     PICOLIBC) echo libs/picolibc ;; ZLIB) echo libs/zlib ;; LWIP) echo libs/lwip ;;
+    MBEDTLS) echo libs/mbedtls ;;
     *) return 1 ;;
   esac
 }
@@ -50,6 +52,7 @@ github_of() {
     LIBGL) echo ps2max32/libgl ;; MXLINK) echo ps2max32/mxlink ;;
     MXSHELL) echo ps2max32/mxshell ;; PICOLIBC) echo picolibc/picolibc ;;
     ZLIB) echo madler/zlib ;; LWIP) echo lwip-tcpip/lwip ;;
+    MBEDTLS) echo Mbed-TLS/mbedtls ;;
   esac
 }
 
@@ -63,7 +66,7 @@ on_github() {
   done
   # third-party repos (our checkout may not have their heads): ask GitHub
   case $1 in
-    PICOLIBC|ZLIB|LWIP) gh api "repos/$(github_of "$1")/commits/$3" --silent 2>/dev/null ;;
+    PICOLIBC|ZLIB|LWIP|MBEDTLS) gh api "repos/$(github_of "$1")/commits/$3" --silent 2>/dev/null ;;
     *) return 1 ;;
   esac
 }

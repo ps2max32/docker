@@ -16,6 +16,7 @@
 #   PICOLIBC_REF  picolibc          -> libs/picolibc (with maxsdk's patch)
 #   ZLIB_REF      zlib              -> libs/zlib
 #   LWIP_REF      lwIP              -> libs/lwip
+#   MBEDTLS_REF   Mbed TLS          -> libs/mbedtls (its generated files are in git: no submodule)
 # A fetched dependency's own ps2max.deps adds the keys the file does not set
 # (an app names MAXSDK_REF; maxsdk's file names its PICOLIBC_REF and LWIP_REF).
 #
@@ -31,7 +32,7 @@ deps=$1
 root=${2:-${PS2MAX:-/opt/ps2max}}
 SELF=${SELF:-}
 SELF_DIR=${SELF_DIR:-$PWD}
-KEYS="MAXSDK LIBGL MXLINK MXSHELL PICOLIBC ZLIB LWIP"
+KEYS="MAXSDK LIBGL MXLINK MXSHELL PICOLIBC ZLIB LWIP MBEDTLS"
 
 url_of() {
   case $1 in
@@ -42,6 +43,7 @@ url_of() {
     PICOLIBC) echo https://github.com/picolibc/picolibc ;;
     ZLIB) echo https://github.com/madler/zlib ;;
     LWIP) echo https://github.com/lwip-tcpip/lwip ;;
+    MBEDTLS) echo https://github.com/Mbed-TLS/mbedtls ;;
   esac
 }
 dir_of() {
@@ -49,6 +51,7 @@ dir_of() {
     MAXSDK) echo libs/maxsdk ;; LIBGL) echo libs/libgl ;;
     MXLINK) echo apps/mxlink ;; MXSHELL) echo apps/mxshell ;;
     PICOLIBC) echo libs/picolibc ;; ZLIB) echo libs/zlib ;; LWIP) echo libs/lwip ;;
+    MBEDTLS) echo libs/mbedtls ;;
   esac
 }
 
